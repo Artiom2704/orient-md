@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Календарь стартов</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f2f4f0;--ink:#1d2b22;--muted:#5d6b62;--line:#d5dbd2;
+  --forest:#2f5d3a;--on-forest:#f2f4f0;--flag:#c4147a;--chip:#e4e9e1;
+  color-scheme:light dark;
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#111914;--ink:#e7ece6;--muted:#9aa89e;--line:#2a362e;--forest:#7fbf8d;--on-forest:#111914;--flag:#e65aae;--chip:#223027}
+}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 Onest,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px calc(40px + env(safe-area-inset-bottom,0px))}
+h1{font:600 clamp(20px,5.5vw,28px)/1.15 Unbounded,Onest,system-ui,sans-serif;margin:0 0 8px;letter-spacing:-.01em}
+.lead{color:var(--muted);margin:0 0 16px;font-size:15px}
+.note{background:var(--chip);border-left:3px solid var(--flag);padding:10px 14px;border-radius:0 8px 8px 0;font-size:14px;margin:0 0 20px}
+.filters{display:grid;gap:10px;margin-bottom:8px}
+.group{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.group span{font-size:14px;color:var(--muted);min-width:5.5em}
+button.chip{font:500 14px Onest,system-ui,sans-serif;color:var(--ink);background:var(--chip);border:1px solid transparent;border-radius:999px;padding:7px 14px;cursor:pointer}
+button.chip[aria-pressed="true"]{background:var(--forest);color:var(--on-forest);font-weight:600}
+button.chip:focus-visible,a:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
+.count{color:var(--muted);font-size:14px;margin:12px 0 0}
+h2{font:600 15px/1.3 Onest,system-ui,sans-serif;color:var(--forest);margin:24px 0 4px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.ev{display:grid;grid-template-columns:60px 1fr;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+.cp{width:54px;height:54px;border:3px solid var(--flag);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;color:var(--flag)}
+.cp b{font:600 19px Unbounded,Onest,sans-serif}
+.cp small{font-size:11px;margin-top:3px;color:var(--muted)}
+.ev h3{font:600 17px/1.3 Onest,system-ui,sans-serif;margin:0 0 4px;overflow-wrap:anywhere}
+.meta{color:var(--muted);font-size:14px;margin:0}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag{font-size:13px;background:var(--chip);border-radius:6px;padding:2px 8px}
+.tag.r{background:transparent;border:1px solid var(--forest);color:var(--forest)}
+a.more{display:inline-block;margin-top:10px;font-weight:600;font-size:14px;color:var(--forest)}
+.empty{padding:28px 0;color:var(--muted)}
+.empty button{margin-top:10px}
+footer{margin-top:32px;color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1>Календарь стартов</h1>
+  <p class="lead">Молдова и Приднестровье: ориентирование, бег и другие соревнования.</p>
+  <p class="note" id="note">Это прототип. События в списке придуманы для примера.</p>
+
+  <div class="filters">
+    <div class="group" id="fSport"><span>Вид спорта</span></div>
+    <div class="group" id="fRegion"><span>Где</span></div>
+  </div>
+  <p class="count" id="count" aria-live="polite"></p>
+  <div id="list"><p class="empty">Загружаем события…</p></div>
+
+  <footer>Хотите добавить событие? Напишите организатору календаря.</footer>
+</main>
+
+<script>
+var tg = window.Telegram && window.Telegram.WebApp;
+var EVENTS = [];
+var state = {sport:"Все", region:"Все"};
+var MONTHS = ["январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"];
+var $ = function(id){return document.getElementById(id)};
+
+/* Цвета из темы Telegram (вне Telegram остаются цвета по умолчанию) */
+function applyTheme(){
+  if(!tg || !tg.themeParams) return;
+  var t = tg.themeParams, s = document.documentElement.style;
+  if(t.bg_color) s.setProperty("--bg", t.bg_color);
+  if(t.text_color) s.setProperty("--ink", t.text_color);
+  if(t.hint_color) s.setProperty("--muted", t.hint_color);
+  if(t.secondary_bg_color) s.setProperty("--chip", t.secondary_bg_color);
+  if(t.button_color) s.setProperty("--forest", t.button_color);
+  if(t.button_text_color) s.setProperty("--on-forest", t.button_text_color);
+  if(t.section_separator_color) s.setProperty("--line", t.section_separator_color);
+  try{ tg.setHeaderColor("bg_color"); tg.setBackgroundColor("bg_color"); }catch(e){}
+}
+if(tg){
+  try{ tg.ready(); tg.expand(); }catch(e){}
+  applyTheme();
+  tg.onEvent && tg.onEvent("themeChanged", applyTheme);
+}
+
+function el(tag, cls, text){
+  var n = document.createElement(tag);
+  if(cls) n.className = cls;
+  if(text!==undefined) n.textContent = text;
+  return n;
+}
+function uniq(key){
+  var out = ["Все"];
+  EVENTS.forEach(function(e){ if(e[key] && out.indexOf(e[key])<0) out.push(e[key]); });
+  return out;
+}
+function mkChips(box, key, values){
+  values.forEach(function(v){
+    var b = el("button","chip",v);
+    b.type = "button";
+    b.setAttribute("aria-pressed", String(state[key]===v));
+    b.addEventListener("click", function(){
+      state[key] = v;
+      box.querySelectorAll("button").forEach(function(x){
+        x.setAttribute("aria-pressed", String(x.textContent===v));
+      });
+      render();
+    });
+    box.appendChild(b);
+  });
+}
+function openExternal(url){
+  if(tg && tg.openLink) tg.openLink(url);
+  else window.open(url, "_blank", "noopener");
+}
+function safeUrl(u){
+  return /^https?:\/\//i.test(u||"") ? u : "";
+}
+function today(){
+  var n = new Date();
+  var m = String(n.getMonth()+1); if(m.length<2) m = "0"+m;
+  var d = String(n.getDate()); if(d.length<2) d = "0"+d;
+  return n.getFullYear()+"-"+m+"-"+d;
+}
+function render(){
+  var list = $("list");
+  list.textContent = "";
+  var t0 = today();
+  var items = EVENTS.filter(function(e){
+    return e.d >= t0 &&
+      (state.sport==="Все"||e.s===state.sport) &&
+      (state.region==="Все"||e.r===state.region);
+  }).sort(function(a,b){return a.d<b.d?-1:(a.d>b.d?1:0)});
+  $("count").textContent = items.length ? "Найдено: "+items.length : "";
+  if(!items.length){
+    var em = el("div","empty","Под такие условия ничего не нашлось. Сбросьте фильтры, чтобы увидеть все предстоящие события.");
+    var rb = el("button","chip","Сбросить фильтры");
+    rb.type = "button";
+    rb.addEventListener("click", function(){
+      state.sport = "Все"; state.region = "Все";
+      document.querySelectorAll(".chip").forEach(function(x){
+        x.setAttribute("aria-pressed", String(x.textContent==="Все"));
+      });
+      render();
+    });
+    em.appendChild(document.createElement("br")); em.appendChild(rb);
+    list.appendChild(em);
+    return;
+  }
+  var cur = "";
+  items.forEach(function(e){
+    var p = e.d.split("-");
+    var mk = p[0]+"-"+p[1];
+    if(mk!==cur){
+      cur = mk;
+      var mn = MONTHS[+p[1]-1];
+      list.appendChild(el("h2","",mn.charAt(0).toUpperCase()+mn.slice(1)+" "+p[0]));
+    }
+    var wd = new Date(e.d+"T00:00:00Z").toLocaleDateString("ru-RU",{weekday:"short",timeZone:"UTC"});
+    var row = el("article","ev");
+    var cp = el("div","cp");
+    cp.appendChild(el("b","",String(+p[2])));
+    cp.appendChild(el("small","",wd));
+    var body = el("div");
+    body.appendChild(el("h3","",e.t));
+    body.appendChild(el("p","meta",[e.c,e.p].filter(Boolean).join(", ")));
+    var tags = el("div","tags");
+    if(e.s) tags.appendChild(el("span","tag",e.s));
+    if(e.r) tags.appendChild(el("span","tag r",e.r));
+    if(e.o) tags.appendChild(el("span","tag",e.o));
+    body.appendChild(tags);
+    var url = safeUrl(e.l);
+    if(url){
+      var a = el("a","more","Подробнее и бюллетень");
+      a.href = url;
+      a.addEventListener("click", function(ev){ ev.preventDefault(); openExternal(url); });
+      body.appendChild(a);
+    }
+    row.appendChild(cp); row.appendChild(body);
+    list.appendChild(row);
+  });
+}
+
+fetch("events.json", {cache:"no-store"})
+  .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+  .then(function(data){
+    EVENTS = data;
+    mkChips($("fSport"), "sport", uniq("s"));
+    mkChips($("fRegion"), "region", uniq("r"));
+    render();
+  })
+  .catch(function(){
+    $("list").textContent = "";
+    $("list").appendChild(el("p","empty","Не удалось загрузить события. Проверьте интернет и откройте календарь ещё раз."));
+  });
+</script>
+</body>
+</html>
