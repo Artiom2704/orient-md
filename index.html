@@ -45,6 +45,11 @@ a.more{display:inline-block;margin-top:10px;font-weight:600;font-size:14px;color
 .empty{padding:28px 0;color:var(--muted)}
 .empty button{margin-top:10px}
 footer{margin-top:32px;color:var(--muted);font-size:14px}
+.panel{margin-top:10px}.regs{margin-top:12px}
+.fld{display:grid;gap:4px;margin:8px 0;font-size:14px;color:var(--muted)}
+.fld input,.fld select{font:400 16px Onest,system-ui,sans-serif;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
+.cons{display:block;font-size:14px;margin:8px 0}
+.reg{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:15px}
 </style>
 </head>
 <body>
@@ -122,6 +127,59 @@ function openExternal(url){
 function safeUrl(u){
   return /^https?:\/\//i.test(u||"") ? u : "";
 }
+var API = "https://script.google.com/macros/s/AKfycbwcy9tTwYA17EBHmlCLAL4D-ygbJfGxjDUm85DOp5qOhsJDIvwMuevGfhTdsh8Va-J2/exec";
+var GROUPS = [];
+["М","Ж"].forEach(function(s){[10,12,14,16,18,21,35,40,45,50,55,60,65].forEach(function(a){GROUPS.push(s+a)})});
+function api(action, data){
+  var body = JSON.stringify(Object.assign({action:action, initData: tg ? tg.initData : ""}, data||{}));
+  return fetch(API, {method:"POST", body:body}).then(function(r){return r.json()});
+}
+function field(label, input){
+  var w = el("label","fld"); w.appendChild(el("span","",label)); w.appendChild(input); return w;
+}
+function inp(type, ph){
+  var i = document.createElement("input"); i.type = type; i.placeholder = ph||""; return i;
+}
+function togglePanel(e, host){
+  if(host.firstChild){ host.textContent = ""; return; }
+  var fio = inp("text","Фамилия Имя"), yr = inp("number","Год рождения"), club = inp("text","Клуб, если есть");
+  var grp = document.createElement("select");
+  GROUPS.forEach(function(g){ var o = document.createElement("option"); o.textContent = g; grp.appendChild(o); });
+  var ok = inp("checkbox"), cons = el("label","cons");
+  cons.appendChild(ok); cons.appendChild(document.createTextNode(" Согласен(на) на обработку моих данных для участия в старте"));
+  var st = el("p","meta"), send = el("button","chip","Отправить заявку");
+  send.type = "button"; send.setAttribute("aria-pressed","true");
+  var regs = el("div","regs");
+  function load(){
+    api("list",{eventId:e.id}).then(function(r){
+      regs.textContent = "";
+      if(!r.ok){ regs.textContent = r.error || "Ошибка"; return; }
+      regs.appendChild(el("p","meta","Заявлено: "+r.items.length));
+      r.items.forEach(function(x){
+        var row = el("div","reg",x.fio+", "+(x.club||"без клуба")+", "+x.group);
+        if(x.mine){
+          var c = el("button","chip","Отменить"); c.type = "button";
+          c.onclick = function(){ api("cancel",{id:x.id}).then(load); };
+          row.appendChild(c);
+        }
+        regs.appendChild(row);
+      });
+    }).catch(function(){ regs.textContent = "Не удалось загрузить список."; });
+  }
+  send.onclick = function(){
+    if(!ok.checked){ st.textContent = "Нужно согласие на обработку данных."; return; }
+    send.disabled = true; st.textContent = "Отправляем…";
+    api("register",{eventId:e.id,fio:fio.value,year:yr.value,club:club.value,group:grp.value,consent:true})
+      .then(function(r){
+        send.disabled = false;
+        if(r.ok){ st.textContent = "Заявка принята."; fio.value = ""; load(); }
+        else st.textContent = r.error || "Ошибка";
+      }).catch(function(){ send.disabled = false; st.textContent = "Нет связи с сервером."; });
+  };
+  [field("ФИО",fio),field("Год рождения",yr),field("Клуб",club),field("Группа",grp),cons,send,st,regs]
+    .forEach(function(n){ host.appendChild(n); });
+  load();
+}
 function today(){
   var n = new Date();
   var m = String(n.getMonth()+1); if(m.length<2) m = "0"+m;
@@ -181,6 +239,13 @@ function render(){
       a.href = url;
       a.addEventListener("click", function(ev){ ev.preventDefault(); openExternal(url); });
       body.appendChild(a);
+    }
+    if(e.id && API.indexOf("https://")===0){
+      var host = el("div","panel");
+      var rb = el("button","chip","Заявки и участники");
+      rb.type = "button"; rb.style.marginTop = "10px";
+      rb.onclick = function(){ togglePanel(e, host); };
+      body.appendChild(rb); body.appendChild(host);
     }
     row.appendChild(cp); row.appendChild(body);
     list.appendChild(row);
