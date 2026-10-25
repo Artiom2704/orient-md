@@ -50,6 +50,22 @@ footer{margin-top:32px;color:var(--muted);font-size:14px}
 .fld input,.fld select{font:400 16px Onest,system-ui,sans-serif;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
 .cons{display:block;font-size:14px;margin:8px 0}
 .reg{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:15px}
+.bar{display:flex;gap:8px;margin-bottom:12px}
+.bar input{flex:1;min-width:0;font:400 16px Onest,system-ui,sans-serif;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:8px 14px}
+.cald{margin:8px 0}.cald summary{cursor:pointer;font-size:14px;color:var(--muted);padding:6px 0}
+.month h4{margin:10px 0 6px;font:600 14px Onest,sans-serif}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;max-width:340px}
+.grid button{font:500 14px Onest,sans-serif;color:var(--ink);background:var(--chip);border:0;border-radius:8px;padding:7px 0;cursor:pointer}
+.grid button:disabled{opacity:.3;cursor:default}
+.grid button[aria-pressed="true"]{background:var(--flag);color:#fff}
+.card{background:var(--chip);border-radius:14px;overflow:hidden;margin:14px 0}
+.poster{position:relative;aspect-ratio:16/9;background:linear-gradient(135deg,var(--forest),var(--flag));display:flex;align-items:center;justify-content:center}
+.poster img{width:100%;height:100%;object-fit:cover}
+.poster .cp{background:var(--bg);width:68px;height:68px}
+.badge{position:absolute;left:10px;top:10px;background:var(--flag);color:#fff;font:600 13px Onest,sans-serif;padding:4px 10px;border-radius:999px}
+.heart{position:absolute;right:10px;top:10px;width:36px;height:36px;border-radius:50%;border:0;background:var(--bg);color:var(--flag);font-size:18px;cursor:pointer}
+.cbody{padding:12px 14px 14px}.card .tag{background:var(--bg)}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 </style>
 </head>
 <body>
@@ -58,10 +74,16 @@ footer{margin-top:32px;color:var(--muted);font-size:14px}
   <p class="lead">Молдова и Приднестровье: ориентирование, бег и другие соревнования.</p>
   <p class="note" id="note">Это прототип. События в списке придуманы для примера.</p>
 
+  <div class="bar">
+    <input id="q" type="search" placeholder="Поиск: название, город, клуб" aria-label="Поиск">
+    <button type="button" class="chip" id="bFav" aria-pressed="false">♡ Избранное</button>
+  </div>
   <div class="filters">
     <div class="group" id="fSport"><span>Вид спорта</span></div>
     <div class="group" id="fRegion"><span>Где</span></div>
+    <div class="group" id="fPrice"><span>Цена</span></div>
   </div>
+  <details class="cald"><summary>Календарь</summary><div id="cal"></div></details>
   <p class="count" id="count" aria-live="polite"></p>
   <div id="list"><p class="empty">Загружаем события…</p></div>
 
@@ -71,7 +93,7 @@ footer{margin-top:32px;color:var(--muted);font-size:14px}
 <script>
 var tg = window.Telegram && window.Telegram.WebApp;
 var EVENTS = [];
-var state = {sport:"Все", region:"Все"};
+var state = {sport:"Все", region:"Все", price:"Все", q:"", day:"", fav:false};
 var MONTHS = ["январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"];
 var $ = function(id){return document.getElementById(id)};
 
@@ -186,69 +208,113 @@ function today(){
   var d = String(n.getDate()); if(d.length<2) d = "0"+d;
   return n.getFullYear()+"-"+m+"-"+d;
 }
+var MG = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+var FAVS = [], SHARE_BASE = "https://t.me/orient_calendarbot/orient_calendar_md";
+function ymd(n){var m=n.getMonth()+1,d=n.getDate();return n.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(d<10?"0":"")+d}
+function label(d){
+  if(d===ymd(new Date())) return "Сегодня";
+  if(d===ymd(new Date(Date.now()+864e5))) return "Завтра";
+  var p = d.split("-"); return (+p[2])+" "+MG[+p[1]-1];
+}
+function isFree(e){ return !e.price || /^бесплатно/i.test(e.price); }
+function cloud(){ try{ return tg && tg.CloudStorage && tg.isVersionAtLeast("6.9"); }catch(x){ return false; } }
+function loadFavs(cb){
+  if(cloud()){
+    tg.CloudStorage.getItem("favs", function(err,v){ try{ FAVS = JSON.parse(v||"[]"); }catch(x){} cb(); });
+    return;
+  }
+  try{ FAVS = JSON.parse(localStorage.getItem("favs")||"[]"); }catch(x){}
+  cb();
+}
+function saveFavs(){
+  var s = JSON.stringify(FAVS);
+  try{ if(cloud()) tg.CloudStorage.setItem("favs", s); else localStorage.setItem("favs", s); }catch(x){}
+}
+function share(e){
+  var link = SHARE_BASE+"?startapp="+encodeURIComponent(e.id);
+  var u = "https://t.me/share/url?url="+encodeURIComponent(link)+"&text="+encodeURIComponent(e.t);
+  if(tg && tg.openTelegramLink) tg.openTelegramLink(u); else window.open(u,"_blank","noopener");
+}
+function resetAll(){
+  state = {sport:"Все", region:"Все", price:"Все", q:"", day:"", fav:false};
+  $("q").value = ""; $("bFav").setAttribute("aria-pressed","false");
+  document.querySelectorAll(".filters .chip").forEach(function(x){
+    x.setAttribute("aria-pressed", String(x.textContent==="Все"));
+  });
+  renderCal(); render();
+}
+function renderCal(){
+  var cal = $("cal"); cal.textContent = "";
+  var has = {}, months = [], t0 = today();
+  EVENTS.forEach(function(e){ if(e.d>=t0) has[e.d] = 1; });
+  Object.keys(has).sort().forEach(function(d){ var k = d.slice(0,7); if(months.indexOf(k)<0) months.push(k); });
+  months.forEach(function(k){
+    var y = +k.slice(0,4), m = +k.slice(5), box = el("div","month");
+    var mn = MG[m-1]; box.appendChild(el("h4","",mn.charAt(0).toUpperCase()+mn.slice(1)+" "+y));
+    var g = el("div","grid"), first = (new Date(Date.UTC(y,m-1,1)).getUTCDay()+6)%7, n = new Date(Date.UTC(y,m,0)).getUTCDate();
+    for(var i=0;i<first;i++) g.appendChild(el("span"));
+    for(var d=1; d<=n; d++){
+      (function(day){
+        var key = k+"-"+(day<10?"0":"")+day, b = el("button","",String(day));
+        b.type = "button"; b.disabled = !has[key];
+        b.setAttribute("aria-pressed", String(state.day===key));
+        b.onclick = function(){ state.day = state.day===key ? "" : key; renderCal(); render(); };
+        g.appendChild(b);
+      })(d);
+    }
+    box.appendChild(g); cal.appendChild(box);
+  });
+}
 function render(){
-  var list = $("list");
-  list.textContent = "";
-  var t0 = today();
+  var list = $("list"); list.textContent = "";
+  var t0 = today(), q = state.q.toLowerCase();
   var items = EVENTS.filter(function(e){
-    return e.d >= t0 &&
-      (state.sport==="Все"||e.s===state.sport) &&
-      (state.region==="Все"||e.r===state.region);
+    return e.d>=t0 &&
+      (state.sport==="Все"||e.s===state.sport) && (state.region==="Все"||e.r===state.region) &&
+      (state.price==="Все" || (state.price==="Бесплатно")===isFree(e)) &&
+      (!state.day||e.d===state.day) && (!state.fav||FAVS.indexOf(e.id)>=0) &&
+      (!q || [e.t,e.c,e.p,e.o,e.s].join(" ").toLowerCase().indexOf(q)>=0);
   }).sort(function(a,b){return a.d<b.d?-1:(a.d>b.d?1:0)});
   $("count").textContent = items.length ? "Найдено: "+items.length : "";
   if(!items.length){
     var em = el("div","empty","Под такие условия ничего не нашлось. Сбросьте фильтры, чтобы увидеть все предстоящие события.");
-    var rb = el("button","chip","Сбросить фильтры");
-    rb.type = "button";
-    rb.addEventListener("click", function(){
-      state.sport = "Все"; state.region = "Все";
-      document.querySelectorAll(".chip").forEach(function(x){
-        x.setAttribute("aria-pressed", String(x.textContent==="Все"));
-      });
-      render();
-    });
-    em.appendChild(document.createElement("br")); em.appendChild(rb);
-    list.appendChild(em);
+    var rb0 = el("button","chip","Сбросить фильтры"); rb0.type = "button"; rb0.onclick = resetAll;
+    em.appendChild(document.createElement("br")); em.appendChild(rb0); list.appendChild(em);
     return;
   }
-  var cur = "";
   items.forEach(function(e){
-    var p = e.d.split("-");
-    var mk = p[0]+"-"+p[1];
-    if(mk!==cur){
-      cur = mk;
-      var mn = MONTHS[+p[1]-1];
-      list.appendChild(el("h2","",mn.charAt(0).toUpperCase()+mn.slice(1)+" "+p[0]));
-    }
-    var wd = new Date(e.d+"T00:00:00Z").toLocaleDateString("ru-RU",{weekday:"short",timeZone:"UTC"});
-    var row = el("article","ev");
-    var cp = el("div","cp");
-    cp.appendChild(el("b","",String(+p[2])));
-    cp.appendChild(el("small","",wd));
-    var body = el("div");
+    var card = el("article","card"); card.id = "e-"+e.id;
+    var poster = el("div","poster"), url = safeUrl(e.img);
+    if(url){ var im = document.createElement("img"); im.src = url; im.alt = ""; im.loading = "lazy"; poster.appendChild(im); }
+    else { var cp = el("div","cp"); cp.appendChild(el("b","",String(+e.d.slice(8)))); poster.appendChild(cp); }
+    poster.appendChild(el("span","badge",label(e.d)));
+    var hb = el("button","heart", FAVS.indexOf(e.id)>=0 ? "♥" : "♡");
+    hb.type = "button"; hb.setAttribute("aria-label","В избранное");
+    hb.onclick = function(){
+      var i = FAVS.indexOf(e.id);
+      if(i<0) FAVS.push(e.id); else FAVS.splice(i,1);
+      saveFavs(); hb.textContent = i<0 ? "♥" : "♡"; if(state.fav) render();
+    };
+    poster.appendChild(hb);
+    var body = el("div","cbody");
     body.appendChild(el("h3","",e.t));
     body.appendChild(el("p","meta",[e.c,e.p].filter(Boolean).join(", ")));
     var tags = el("div","tags");
+    tags.appendChild(el("span","tag", e.price || "Бесплатно"));
     if(e.s) tags.appendChild(el("span","tag",e.s));
     if(e.r) tags.appendChild(el("span","tag r",e.r));
     if(e.o) tags.appendChild(el("span","tag",e.o));
     body.appendChild(tags);
-    var url = safeUrl(e.l);
-    if(url){
-      var a = el("a","more","Подробнее и бюллетень");
-      a.href = url;
-      a.addEventListener("click", function(ev){ ev.preventDefault(); openExternal(url); });
-      body.appendChild(a);
-    }
+    var acts = el("div","acts"), host = el("div","panel");
+    var link = safeUrl(e.l);
+    if(link){ var a = el("button","chip","Подробнее"); a.type = "button"; a.onclick = function(){ openExternal(link); }; acts.appendChild(a); }
     if(e.id && API.indexOf("https://")===0){
-      var host = el("div","panel");
-      var rb = el("button","chip","Заявки и участники");
-      rb.type = "button"; rb.style.marginTop = "10px";
-      rb.onclick = function(){ togglePanel(e, host); };
-      body.appendChild(rb); body.appendChild(host);
+      var rb = el("button","chip","Заявки и участники"); rb.type = "button";
+      rb.onclick = function(){ togglePanel(e, host); }; acts.appendChild(rb);
     }
-    row.appendChild(cp); row.appendChild(body);
-    list.appendChild(row);
+    if(SHARE_BASE.indexOf("SHORTNAME")<0){ var sb = el("button","chip","Поделиться"); sb.type = "button"; sb.onclick = function(){ share(e); }; acts.appendChild(sb); }
+    body.appendChild(acts); body.appendChild(host);
+    card.appendChild(poster); card.appendChild(body); list.appendChild(card);
   });
 }
 
@@ -258,7 +324,18 @@ fetch("events.json", {cache:"no-store"})
     EVENTS = data;
     mkChips($("fSport"), "sport", uniq("s"));
     mkChips($("fRegion"), "region", uniq("r"));
-    render();
+    mkChips($("fPrice"), "price", ["Все","Бесплатно","Платно"]);
+    $("q").addEventListener("input", function(){ state.q = this.value; render(); });
+    $("bFav").onclick = function(){
+      state.fav = !state.fav; this.setAttribute("aria-pressed", String(state.fav)); render();
+    };
+    renderCal();
+    loadFavs(function(){
+      render();
+      var sp = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+      var t = sp && document.getElementById("e-"+sp);
+      if(t) t.scrollIntoView();
+    });
   })
   .catch(function(){
     $("list").textContent = "";
