@@ -1,346 +1,457 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>Календарь стартов</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
-<style>
-:root{
-  --bg:#f2f4f0;--ink:#1d2b22;--muted:#5d6b62;--line:#d5dbd2;
-  --forest:#2f5d3a;--on-forest:#f2f4f0;--flag:#c4147a;--chip:#e4e9e1;
-  color-scheme:light dark;
-  box-sizing:border-box;
-}
-@media (prefers-color-scheme:dark){
-  :root{--bg:#111914;--ink:#e7ece6;--muted:#9aa89e;--line:#2a362e;--forest:#7fbf8d;--on-forest:#111914;--flag:#e65aae;--chip:#223027}
-}
-*,*::before,*::after{box-sizing:inherit}
-body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 Onest,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
-.wrap{max-width:760px;margin:0 auto;padding:20px 16px calc(40px + env(safe-area-inset-bottom,0px))}
-h1{font:600 clamp(20px,5.5vw,28px)/1.15 Unbounded,Onest,system-ui,sans-serif;margin:0 0 8px;letter-spacing:-.01em}
-.lead{color:var(--muted);margin:0 0 16px;font-size:15px}
-.note{background:var(--chip);border-left:3px solid var(--flag);padding:10px 14px;border-radius:0 8px 8px 0;font-size:14px;margin:0 0 20px}
-.filters{display:grid;gap:10px;margin-bottom:8px}
-.group{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.group span{font-size:14px;color:var(--muted);min-width:5.5em}
-button.chip{font:500 14px Onest,system-ui,sans-serif;color:var(--ink);background:var(--chip);border:1px solid transparent;border-radius:999px;padding:7px 14px;cursor:pointer}
-button.chip[aria-pressed="true"]{background:var(--forest);color:var(--on-forest);font-weight:600}
-button.chip:focus-visible,a:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
-.count{color:var(--muted);font-size:14px;margin:12px 0 0}
-h2{font:600 15px/1.3 Onest,system-ui,sans-serif;color:var(--forest);margin:24px 0 4px;padding-bottom:6px;border-bottom:1px solid var(--line)}
-.ev{display:grid;grid-template-columns:60px 1fr;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
-.cp{width:54px;height:54px;border:3px solid var(--flag);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;color:var(--flag)}
-.cp b{font:600 19px Unbounded,Onest,sans-serif}
-.cp small{font-size:11px;margin-top:3px;color:var(--muted)}
-.ev h3{font:600 17px/1.3 Onest,system-ui,sans-serif;margin:0 0 4px;overflow-wrap:anywhere}
-.meta{color:var(--muted);font-size:14px;margin:0}
-.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.tag{font-size:13px;background:var(--chip);border-radius:6px;padding:2px 8px}
-.tag.r{background:transparent;border:1px solid var(--forest);color:var(--forest)}
-a.more{display:inline-block;margin-top:10px;font-weight:600;font-size:14px;color:var(--forest)}
-.empty{padding:28px 0;color:var(--muted)}
-.empty button{margin-top:10px}
-footer{margin-top:32px;color:var(--muted);font-size:14px}
-.panel{margin-top:10px}.regs{margin-top:12px}
-.fld{display:grid;gap:4px;margin:8px 0;font-size:14px;color:var(--muted)}
-.fld input,.fld select{font:400 16px Onest,system-ui,sans-serif;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
-.cons{display:block;font-size:14px;margin:8px 0}
-.reg{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:15px}
-.bar{display:flex;gap:8px;margin-bottom:12px}
-.bar input{flex:1;min-width:0;font:400 16px Onest,system-ui,sans-serif;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:8px 14px}
-.cald{margin:8px 0}.cald summary{cursor:pointer;font-size:14px;color:var(--muted);padding:6px 0}
-.month h4{margin:10px 0 6px;font:600 14px Onest,sans-serif}
-.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;max-width:340px}
-.grid button{font:500 14px Onest,sans-serif;color:var(--ink);background:var(--chip);border:0;border-radius:8px;padding:7px 0;cursor:pointer}
-.grid button:disabled{opacity:.3;cursor:default}
-.grid button[aria-pressed="true"]{background:var(--flag);color:#fff}
-.card{background:var(--chip);border-radius:14px;overflow:hidden;margin:14px 0}
-.poster{position:relative;aspect-ratio:16/9;background:linear-gradient(135deg,var(--forest),var(--flag));display:flex;align-items:center;justify-content:center}
-.poster img{width:100%;height:100%;object-fit:cover}
-.poster .cp{background:var(--bg);width:68px;height:68px}
-.badge{position:absolute;left:10px;top:10px;background:var(--flag);color:#fff;font:600 13px Onest,sans-serif;padding:4px 10px;border-radius:999px}
-.heart{position:absolute;right:10px;top:10px;width:36px;height:36px;border-radius:50%;border:0;background:var(--bg);color:var(--flag);font-size:18px;cursor:pointer}
-.cbody{padding:12px 14px 14px}.card .tag{background:var(--bg)}
-.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-</style>
 </head>
 <body>
-<main class="wrap">
-  <h1>Календарь стартов</h1>
-  <p class="lead">Молдова и Приднестровье: ориентирование, бег и другие соревнования.</p>
-  <p class="note" id="note">Это прототип. События в списке придуманы для примера.</p>
+<title>Календарь стартов</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: app shell — sticky header with filters, poster cards, bottom tab bar, detail sheet. Posters are generated topo maps. */
+:root{
+  --bg:#eef1ec;--surface:#fbfcfa;--ink:#18241c;--muted:#5b695f;--line:#d3dacf;
+  --forest:#2f5d3a;--flag:#c4147a;--contour:#b0683a;--chip:#e2e8de;--on-accent:#ffffff;
+  --display:Unbounded,Onest,system-ui,sans-serif;--body:Onest,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --tabbar:64px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1712;--surface:#17221b;--ink:#e6ece5;--muted:#97a69b;--line:#29362d;--forest:#7fbf8d;--flag:#ee5cb3;--contour:#d89263;--chip:#203027;--on-accent:#0f1712;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1712;--surface:#17221b;--ink:#e6ece5;--muted:#97a69b;--line:#29362d;--forest:#7fbf8d;--flag:#ee5cb3;--contour:#d89263;--chip:#203027;--on-accent:#0f1712;color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--body);-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+button{font:inherit;color:inherit}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--flag);outline-offset:2px}
+.shell{max-width:640px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 calc(var(--tabbar) + 24px + env(safe-area-inset-bottom,0px))}
 
-  <div class="bar">
-    <input id="q" type="search" placeholder="Поиск: название, город, клуб" aria-label="Поиск">
-    <button type="button" class="chip" id="bFav" aria-pressed="false">♡ Избранное</button>
-  </div>
-  <div class="filters">
-    <div class="group" id="fSport"><span>Вид спорта</span></div>
-    <div class="group" id="fRegion"><span>Где</span></div>
-    <div class="group" id="fPrice"><span>Цена</span></div>
-  </div>
-  <details class="cald"><summary>Календарь</summary><div id="cal"></div></details>
-  <p class="count" id="count" aria-live="polite"></p>
-  <div id="list"><p class="empty">Загружаем события…</p></div>
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:14px 10px;display:grid;gap:10px}
+.brand{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{font:600 20px/1.15 var(--display);margin:0;letter-spacing:-.01em;text-wrap:balance}
+h1 small{display:block;font:500 12px/1.3 var(--body);color:var(--muted);letter-spacing:.02em;margin-top:3px}
+.mark{width:34px;height:34px;flex:none}
+.row{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin-inline:-4px;padding-inline:4px}
+.row::-webkit-scrollbar{display:none}
+.chip{flex:none;font:500 14px var(--body);background:var(--chip);border:1px solid transparent;border-radius:999px;padding:7px 14px;cursor:pointer;white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.chip.s{font-size:13px;padding:5px 12px;background:transparent;border-color:var(--line)}
+.chip.s[aria-pressed="true"]{background:var(--forest);border-color:var(--forest);color:var(--on-accent)}
 
-  <footer>Хотите добавить событие? Напишите организатору календаря.</footer>
-</main>
+.note{font-size:13px;color:var(--muted);margin:4px 0 10px}
+.count{font-size:13px;color:var(--muted);margin:6px 0 10px;font-variant-numeric:tabular-nums}
+.day{font:600 12px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:18px 2px 8px}
+.list{display:grid;gap:14px}
+
+.card{background:var(--surface);border-radius:16px;overflow:hidden;border:1px solid var(--line);cursor:pointer;display:grid}
+.poster{position:relative;aspect-ratio:2/1;max-width:100%;background:var(--chip);overflow:hidden}
+.poster svg,.poster img{display:block;width:100%;height:100%;object-fit:cover}
+.date{position:absolute;left:12px;top:12px;background:var(--surface);color:var(--ink);border-radius:12px;padding:6px 10px;text-align:center;line-height:1;min-width:52px;box-shadow:0 2px 8px rgb(0 0 0 / .12)}
+.date b{display:block;font:700 20px var(--display);color:var(--flag)}
+.date span{display:block;font:600 11px var(--body);text-transform:uppercase;letter-spacing:.06em;margin-top:4px;color:var(--muted)}
+.sport{position:absolute;right:12px;top:12px;font:600 12px var(--body);background:var(--ink);color:var(--bg);border-radius:999px;padding:4px 10px}
+.cbody{padding:12px 14px 14px;display:grid;gap:4px;min-width:0}
+.cbody h3{font:600 17px/1.3 var(--body);margin:0;text-wrap:balance}
+.meta{font-size:14px;color:var(--muted);margin:0}
+.acts{display:flex;gap:8px;margin-top:8px;align-items:center}
+.ib{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:transparent;border-radius:999px;padding:6px 12px;font:500 14px var(--body);cursor:pointer}
+.ib svg{width:18px;height:18px}
+.ib.on{border-color:var(--flag);color:var(--flag)}
+.ib.go.on{background:var(--forest);border-color:var(--forest);color:var(--on-accent)}
+.ib.fav{margin-left:auto;padding:6px 9px}
+.ib.fav.on svg{fill:currentColor}
+.going{font-size:13px;color:var(--muted)}
+
+.empty{text-align:center;padding:40px 12px;color:var(--muted)}
+.empty b{display:block;color:var(--ink);font:600 16px var(--body);margin-bottom:6px}
+
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
+nav.tabs div{max-width:640px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);height:var(--tabbar)}
+nav.tabs button{background:none;border:0;display:grid;justify-items:center;align-content:center;gap:3px;font:500 11px var(--body);color:var(--muted);cursor:pointer;position:relative}
+nav.tabs button svg{width:22px;height:22px}
+nav.tabs button[aria-current="page"]{color:var(--flag)}
+nav.tabs i{position:absolute;top:8px;left:calc(50% + 6px);font:600 10px var(--body);font-style:normal;background:var(--flag);color:var(--on-accent);border-radius:999px;padding:1px 5px}
+
+.sheet-bg{position:fixed;inset:0;z-index:20;background:rgb(0 0 0 / .45);display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);width:100%;max-width:640px;max-height:92%;overflow:auto;border-radius:20px 20px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+.sheet .poster{aspect-ratio:16/9}
+.sheet .in{padding:16px max(16px,env(safe-area-inset-left,0px)) 0 max(16px,env(safe-area-inset-right,0px));display:grid;gap:14px}
+.sheet h2{font:600 21px/1.25 var(--display);margin:0;text-wrap:balance}
+.close{position:absolute;right:12px;top:12px;width:36px;height:36px;border-radius:50%;border:0;background:var(--surface);cursor:pointer;display:grid;place-items:center}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:14px}
+.facts dt{color:var(--muted)}
+.facts dd{margin:0;min-width:0}
+.desc{margin:0;font-size:15px;max-width:60ch}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;padding:12px;font:600 15px var(--body);border:1px solid var(--line);background:transparent;cursor:pointer;text-decoration:none;color:var(--ink);text-align:center}
+.btn.main{background:var(--flag);border-color:var(--flag);color:var(--on-accent);grid-column:1/-1}
+.btn.main[aria-disabled="true"]{background:var(--chip);border-color:var(--chip);color:var(--muted);cursor:default}
+.btn.on{background:var(--forest);border-color:var(--forest);color:var(--on-accent)}
+.btn svg{width:18px;height:18px}
+
+form.create{display:grid;gap:12px;margin-top:6px}
+form.create label{display:grid;gap:4px;font-size:13px;color:var(--muted)}
+form.create .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+form.create input,form.create select,form.create textarea{font:400 15px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-width:0}
+.intro{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;font-size:14px;color:var(--muted)}
+.intro b{color:var(--ink);display:block;font-size:15px;margin-bottom:4px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tabbar) + 16px + env(safe-area-inset-bottom,0px));z-index:30;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .22s ease-out}@keyframes up{from{transform:translateY(40px);opacity:.6}}}
+</style>
+
+<div class="shell">
+  <header class="top">
+    <div class="brand">
+      <h1 id="ttl">Календарь стартов<small>Молдова и Приднестровье</small></h1>
+      <svg class="mark" viewBox="0 0 34 34" aria-hidden="true"><path d="M3 3h28v28z" fill="var(--flag)"/><path d="M3 3h28L3 31z" fill="#fff"/><rect x="3" y="3" width="28" height="28" fill="none" stroke="var(--ink)" stroke-width="1.5"/></svg>
+    </div>
+    <div class="row" id="fDate" role="group" aria-label="Когда"></div>
+    <div class="row" id="fSport" role="group" aria-label="Вид спорта"></div>
+  </header>
+  <main id="view"></main>
+</div>
+
+<nav class="tabs" aria-label="Разделы"><div id="tabs"></div></nav>
+<div id="sheet" hidden></div>
+<div class="toast" id="toast" hidden></div>
 
 <script>
-var tg = window.Telegram && window.Telegram.WebApp;
-var EVENTS = [];
-var state = {sport:"Все", region:"Все", price:"Все", q:"", day:"", fav:false};
-var MONTHS = ["январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"];
+// ===== Настройки =====
+var EVENTS_URL = "events.json";      // файл с событиями рядом со страницей (GitHub Pages)
+var CREATE_ENDPOINT = "";            // URL веб-приложения Apps Script для заявок на новые старты (пусто = демо)
+var BOT_URL = "https://t.me/orient_calendarbot";
+
+// Примеры на случай, если events.json не загрузился
+var SAMPLE = [
+  {date:"2026-11-09",time:"18:30",title:"Вечерняя тренировка в парке",sport:"Ориентирование",region:"Молдова",city:"Кишинёв",place:"Парк «Валя Морилор»",org:"Клуб «Азимут»"},
+  {date:"2026-11-11",time:"17:30",title:"Тренировка по азимуту",sport:"Ориентирование",region:"ПМР",city:"Тирасполь",place:"Лесопарк",org:"Клуб ориентирования"},
+  {date:"2026-11-14",time:"18:00",title:"Кубок Кишинёва. Ночное ориентирование",sport:"Ориентирование",region:"Молдова",city:"Кишинёв",place:"Парк «Долина Роз»",org:"Федерация",desc:"Ночной спринт с фонарями. Группы М/Ж 12, 16, 21, 40. Карта 1:5000, сечение рельефа 2,5 м.",reg:"https://t.me/orient_calendarbot"},
+  {date:"2026-11-15",time:"10:00",title:"Осенний кубок. Классика",sport:"Ориентирование",region:"ПМР",city:"Тирасполь",place:"Лесопарк",org:"Клуб ориентирования",desc:"Классическая дистанция, карта 1:10000, сечение 5 м. Старт по протоколу каждые 2 минуты."},
+  {date:"2026-11-15",time:"11:00",title:"Кросс «Последний листопад»",sport:"Бег",region:"Молдова",city:"Бельцы",place:"Городской парк",org:"Беговой клуб"},
+  {date:"2026-11-21",time:"11:00",title:"Парковое ориентирование для семей",sport:"Ориентирование",region:"ПМР",city:"Бендеры",place:"Парк у крепости",org:"Спортшкола"},
+  {date:"2026-11-22",time:"10:00",title:"Вело-ориентирование вдоль Днестра",sport:"Велоспорт",region:"ПМР",city:"Рыбница",place:"Набережная",org:"Велоклуб"},
+  {date:"2026-11-29",time:"09:30",title:"Трейл «Первый снег»",sport:"Бег",region:"Молдова",city:"Сороки",place:"Склоны над Днестром",org:"Трейл-клуб"},
+  {date:"2026-12-06",time:"12:00",title:"Новогодний старт. Лабиринт в зале",sport:"Ориентирование",region:"Молдова",city:"Кишинёв",place:"Спортзал",org:"Федерация"},
+  {date:"2026-12-13",time:"10:00",title:"Зимний кросс",sport:"Бег",region:"ПМР",city:"Тирасполь",place:"Лесопарк",org:"Беговой клуб"}
+];
+
+var tg = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData !== undefined ? window.Telegram.WebApp : null;
+var inTg = !!(tg && tg.platform && tg.platform !== "unknown");
+var EVENTS = [], usingSample = false;
+var state = {tab:"feed", when:"all", sport:"Все"};
+var store = {fav:{}, go:{}};
 var $ = function(id){return document.getElementById(id)};
+var MON = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+var MON_S = ["янв","фев","мар","апр","мая","июн","июл","авг","сен","окт","ноя","дек"];
 
-/* Цвета из темы Telegram (вне Telegram остаются цвета по умолчанию) */
-function applyTheme(){
-  if(!tg || !tg.themeParams) return;
-  var t = tg.themeParams, s = document.documentElement.style;
-  if(t.bg_color) s.setProperty("--bg", t.bg_color);
-  if(t.text_color) s.setProperty("--ink", t.text_color);
-  if(t.hint_color) s.setProperty("--muted", t.hint_color);
-  if(t.secondary_bg_color) s.setProperty("--chip", t.secondary_bg_color);
-  if(t.button_color) s.setProperty("--forest", t.button_color);
-  if(t.button_text_color) s.setProperty("--on-forest", t.button_text_color);
-  if(t.section_separator_color) s.setProperty("--line", t.section_separator_color);
-  try{ tg.setHeaderColor("bg_color"); tg.setBackgroundColor("bg_color"); }catch(e){}
+// ===== Хранилище: Telegram CloudStorage (синхронно между устройствами) + localStorage =====
+function saveStore(){
+  var s = JSON.stringify(store);
+  try{ localStorage.setItem("oc_store", s) }catch(e){}
+  if(inTg && tg.CloudStorage){ try{ tg.CloudStorage.setItem("oc_store", s) }catch(e){} }
 }
-if(tg){
-  try{ tg.ready(); tg.expand(); }catch(e){}
-  applyTheme();
-  tg.onEvent && tg.onEvent("themeChanged", applyTheme);
+function loadStore(done){
+  try{ var s = localStorage.getItem("oc_store"); if(s) store = JSON.parse(s) }catch(e){}
+  if(inTg && tg.CloudStorage){
+    try{ tg.CloudStorage.getItem("oc_store", function(err, v){ if(!err && v){ try{ store = JSON.parse(v); done() }catch(e){} } }) }catch(e){}
+  }
 }
 
-function el(tag, cls, text){
-  var n = document.createElement(tag);
-  if(cls) n.className = cls;
-  if(text!==undefined) n.textContent = text;
-  return n;
+// ===== Данные =====
+function norm(e, i){
+  var o = {
+    date: e.date||e.d, end: e.end||"", time: e.time||"", title: e.title||e.t||"Без названия",
+    sport: e.sport||e.s||"Другое", region: e.region||e.r||"", city: e.city||e.c||"", place: e.place||e.p||"",
+    org: e.org||e.o||"", img: e.img||e.poster||"", reg: e.reg||e.url||"", desc: e.desc||""
+  };
+  o.id = e.id || (o.date+"-"+o.title).replace(/\s+/g,"-").toLowerCase();
+  return o;
 }
-function uniq(key){
-  var out = ["Все"];
-  EVENTS.forEach(function(e){ if(e[key] && out.indexOf(e[key])<0) out.push(e[key]); });
-  return out;
+function today(){ var n=new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()) }
+function pd(s){ var p=s.split("-"); return new Date(+p[0], +p[1]-1, +p[2]) }
+function iso(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0") }
+function addD(d,n){ var x=new Date(d); x.setDate(x.getDate()+n); return x }
+
+var WHEN = [
+  {k:"all", l:"Все"},
+  {k:"today", l:"Сегодня"},
+  {k:"tomorrow", l:"Завтра"},
+  {k:"weekend", l:"Выходные"},
+  {k:"week", l:"7 дней"},
+  {k:"month", l:"30 дней"}
+];
+function range(k){
+  var t = today(), dow = t.getDay();
+  if(k==="today") return [t,t];
+  if(k==="tomorrow") return [addD(t,1),addD(t,1)];
+  if(k==="weekend"){ if(dow===6) return [t,addD(t,1)]; if(dow===0) return [t,t]; return [addD(t,6-dow),addD(t,7-dow)] }
+  if(k==="week") return [t,addD(t,6)];
+  if(k==="month") return [t,addD(t,29)];
+  return [t,null];
 }
-function mkChips(box, key, values){
-  values.forEach(function(v){
-    var b = el("button","chip",v);
-    b.type = "button";
-    b.setAttribute("aria-pressed", String(state[key]===v));
-    b.addEventListener("click", function(){
-      state[key] = v;
-      box.querySelectorAll("button").forEach(function(x){
-        x.setAttribute("aria-pressed", String(x.textContent===v));
-      });
-      render();
-    });
+
+// ===== Постер: топокарта, сгенерированная по названию =====
+function rng(seed){ var h=2166136261; for(var i=0;i<seed.length;i++){ h^=seed.charCodeAt(i); h=Math.imul(h,16777619) } return function(){ h=Math.imul(h^(h>>>15),2246822507); h=Math.imul(h^(h>>>13),3266489909); h^=h>>>16; return (h>>>0)/4294967296 } }
+var SPORT_BG = {"Ориентирование":["#e8efd9","#cfe0b8"],"Бег":["#f1e6d3","#e6cfa8"],"Велоспорт":["#dfe9ee","#bcd3de"]};
+function poster(e){
+  if(e.img){ var im=document.createElement("img"); im.src=e.img; im.alt=""; im.loading="lazy"; return im }
+  var r = rng(e.id), W=400, H=200, bg = SPORT_BG[e.sport]||["#ebe8df","#d9d3c2"];
+  var s = '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="'+W+'" height="'+H+'" fill="'+bg[0]+'"/>';
+  // открытые участки (жёлтые на спортивной карте)
+  s += '<ellipse cx="'+(r()*W)+'" cy="'+(r()*H)+'" rx="'+(40+r()*60)+'" ry="'+(25+r()*35)+'" fill="#f5d77a" opacity=".55"/>';
+  s += '<path d="M0 '+(H*(.3+r()*.4))+' C '+W*.3+' '+(r()*H)+', '+W*.6+' '+(r()*H)+', '+W+' '+(H*(.3+r()*.4))+' L'+W+' '+H+' L0 '+H+'z" fill="'+bg[1]+'" opacity=".7"/>';
+  var hills = 2+Math.floor(r()*2);
+  for(var h=0;h<hills;h++){
+    var cx=W*(.15+r()*.7), cy=H*(.2+r()*.6), base=18+r()*16, ph=[r()*6,r()*6,r()*6];
+    for(var k=1;k<=6;k++){
+      var R=base*k*0.75, pts=[];
+      for(var a=0;a<24;a++){
+        var t=a/24*Math.PI*2, w=1+.18*Math.sin(t*2+ph[0])+.12*Math.sin(t*3+ph[1]+k*.3)+.08*Math.sin(t*5+ph[2]);
+        pts.push([cx+Math.cos(t)*R*w*1.5, cy+Math.sin(t)*R*w]);
+      }
+      var d="M"+((pts[0][0]+pts[23][0])/2).toFixed(1)+" "+((pts[0][1]+pts[23][1])/2).toFixed(1);
+      for(var j=0;j<24;j++){ var p=pts[j], q=pts[(j+1)%24]; d+=" Q"+p[0].toFixed(1)+" "+p[1].toFixed(1)+" "+((p[0]+q[0])/2).toFixed(1)+" "+((p[1]+q[1])/2).toFixed(1) }
+      s += '<path d="'+d+'z" fill="none" stroke="#b0683a" stroke-width="'+(k%5===0?2.2:1.1)+'" opacity=".8"/>';
+    }
+  }
+  // дистанция: старт-треугольник, линии и КП
+  var n=3+Math.floor(r()*2), pts2=[[W*(.55+r()*.35),H*(.55+r()*.3)]];
+  for(var i=0;i<n;i++) pts2.push([W*(.12+r()*.8),H*(.15+r()*.7)]);
+  var lp=""; pts2.forEach(function(p,i){ lp+=(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1) });
+  s += '<path d="'+lp+'" fill="none" stroke="#c4147a" stroke-width="2" opacity=".85"/>';
+  var p0=pts2[0]; s += '<path d="M'+p0[0]+' '+(p0[1]-11)+' L'+(p0[0]+10)+' '+(p0[1]+7)+' L'+(p0[0]-10)+' '+(p0[1]+7)+'z" fill="'+bg[0]+'" stroke="#c4147a" stroke-width="2.2"/>';
+  pts2.slice(1).forEach(function(p){ s += '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="9" fill="'+bg[0]+'" fill-opacity=".6" stroke="#c4147a" stroke-width="2.2"/>' });
+  s += '</svg>';
+  var w=document.createElement("div"); w.innerHTML=s; return w.firstChild;
+}
+
+// ===== Иконки =====
+var IC = {
+  heart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  run:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 4v4M12 16v4M4 12h4M16 12h4"/></svg>',
+  feed:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>',
+  cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="8"/></svg>',
+  share:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M8 8l4-4 4 4M5 14v5h14v-5"/></svg>',
+  x:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+};
+
+// ===== Утилиты =====
+function el(tag, cls, text){ var n=document.createElement(tag); if(cls) n.className=cls; if(text!==undefined) n.textContent=text; return n }
+function haptic(){ try{ inTg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred("light") }catch(e){} }
+var tt;
+function toast(msg){ var t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(tt); tt=setTimeout(function(){t.hidden=true},2400) }
+function openLink(url){ if(inTg){ if(/^https:\/\/t\.me\//.test(url)) tg.openTelegramLink(url); else tg.openLink(url) } else window.open(url,"_blank","noopener") }
+function dayLabel(e){
+  var d=pd(e.date), t=today(), diff=Math.round((d-t)/864e5);
+  var wd=d.toLocaleDateString("ru-RU",{weekday:"long"});
+  var head = diff===0?"Сегодня":diff===1?"Завтра":wd.charAt(0).toUpperCase()+wd.slice(1);
+  return head+", "+d.getDate()+" "+MON[d.getMonth()];
+}
+function toggle(kind, e){
+  if(store[kind][e.id]) delete store[kind][e.id]; else store[kind][e.id]=1;
+  saveStore(); haptic();
+  if(kind==="go" && store.go[e.id]) toast("Отмечено: вы идёте");
+  if(kind==="fav" && store.fav[e.id]) toast("Добавлено в избранное");
+  renderTabs(); render();
+  if(!$("sheet").hidden) openSheet(e);
+}
+
+// ===== Фильтры и вкладки =====
+function chips(box, items, key, cls){
+  box.textContent="";
+  items.forEach(function(it){
+    var b=el("button","chip"+(cls?" "+cls:""),it.l); b.type="button";
+    b.setAttribute("aria-pressed", String(state[key]===it.k));
+    b.addEventListener("click", function(){ state[key]=it.k; buildFilters(); render(); });
     box.appendChild(b);
   });
 }
-function openExternal(url){
-  if(tg && tg.openLink) tg.openLink(url);
-  else window.open(url, "_blank", "noopener");
+function buildFilters(){
+  chips($("fDate"), WHEN, "when");
+  var sports=["Все"]; EVENTS.forEach(function(e){ if(sports.indexOf(e.sport)<0) sports.push(e.sport) });
+  chips($("fSport"), sports.map(function(s){return {k:s,l:s}}), "sport", "s");
 }
-function safeUrl(u){
-  return /^https?:\/\//i.test(u||"") ? u : "";
-}
-var API = "https://script.google.com/macros/s/AKfycbwcy9tTwYA17EBHmlCLAL4D-ygbJfGxjDUm85DOp5qOhsJDIvwMuevGfhTdsh8Va-J2/exec";
-var GROUPS = [];
-["М","Ж"].forEach(function(s){[10,12,14,16,18,21,35,40,45,50,55,60,65].forEach(function(a){GROUPS.push(s+a)})});
-function api(action, data){
-  var body = JSON.stringify(Object.assign({action:action, initData: tg ? tg.initData : ""}, data||{}));
-  return fetch(API, {method:"POST", body:body}).then(function(r){return r.json()});
-}
-function field(label, input){
-  var w = el("label","fld"); w.appendChild(el("span","",label)); w.appendChild(input); return w;
-}
-function inp(type, ph){
-  var i = document.createElement("input"); i.type = type; i.placeholder = ph||""; return i;
-}
-function togglePanel(e, host){
-  if(host.firstChild){ host.textContent = ""; return; }
-  var fio = inp("text","Фамилия Имя"), yr = inp("number","Год рождения"), club = inp("text","Клуб, если есть");
-  var grp = document.createElement("select");
-  GROUPS.forEach(function(g){ var o = document.createElement("option"); o.textContent = g; grp.appendChild(o); });
-  var ok = inp("checkbox"), cons = el("label","cons");
-  cons.appendChild(ok); cons.appendChild(document.createTextNode(" Согласен(на) на обработку моих данных для участия в старте"));
-  var st = el("p","meta"), send = el("button","chip","Отправить заявку");
-  send.type = "button"; send.setAttribute("aria-pressed","true");
-  var regs = el("div","regs");
-  function load(){
-    api("list",{eventId:e.id}).then(function(r){
-      regs.textContent = "";
-      if(!r.ok){ regs.textContent = r.error || "Ошибка"; return; }
-      regs.appendChild(el("p","meta","Заявлено: "+r.items.length));
-      r.items.forEach(function(x){
-        var row = el("div","reg",x.fio+", "+(x.club||"без клуба")+", "+x.group);
-        if(x.mine){
-          var c = el("button","chip","Отменить"); c.type = "button";
-          c.onclick = function(){ api("cancel",{id:x.id}).then(load); };
-          row.appendChild(c);
-        }
-        regs.appendChild(row);
-      });
-    }).catch(function(){ regs.textContent = "Не удалось загрузить список."; });
-  }
-  send.onclick = function(){
-    if(!ok.checked){ st.textContent = "Нужно согласие на обработку данных."; return; }
-    send.disabled = true; st.textContent = "Отправляем…";
-    api("register",{eventId:e.id,fio:fio.value,year:yr.value,club:club.value,group:grp.value,consent:true})
-      .then(function(r){
-        send.disabled = false;
-        if(r.ok){ st.textContent = "Заявка принята."; fio.value = ""; load(); }
-        else st.textContent = r.error || "Ошибка";
-      }).catch(function(){ send.disabled = false; st.textContent = "Нет связи с сервером."; });
-  };
-  [field("ФИО",fio),field("Год рождения",yr),field("Клуб",club),field("Группа",grp),cons,send,st,regs]
-    .forEach(function(n){ host.appendChild(n); });
-  load();
-}
-function today(){
-  var n = new Date();
-  var m = String(n.getMonth()+1); if(m.length<2) m = "0"+m;
-  var d = String(n.getDate()); if(d.length<2) d = "0"+d;
-  return n.getFullYear()+"-"+m+"-"+d;
-}
-var MG = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
-var FAVS = [], SHARE_BASE = "https://t.me/orient_calendarbot/orient_calendar_md";
-function ymd(n){var m=n.getMonth()+1,d=n.getDate();return n.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(d<10?"0":"")+d}
-function label(d){
-  if(d===ymd(new Date())) return "Сегодня";
-  if(d===ymd(new Date(Date.now()+864e5))) return "Завтра";
-  var p = d.split("-"); return (+p[2])+" "+MG[+p[1]-1];
-}
-function isFree(e){ return !e.price || /^бесплатно/i.test(e.price); }
-function cloud(){ try{ return tg && tg.CloudStorage && tg.isVersionAtLeast("6.9"); }catch(x){ return false; } }
-function loadFavs(cb){
-  if(cloud()){
-    tg.CloudStorage.getItem("favs", function(err,v){ try{ FAVS = JSON.parse(v||"[]"); }catch(x){} cb(); });
-    return;
-  }
-  try{ FAVS = JSON.parse(localStorage.getItem("favs")||"[]"); }catch(x){}
-  cb();
-}
-function saveFavs(){
-  var s = JSON.stringify(FAVS);
-  try{ if(cloud()) tg.CloudStorage.setItem("favs", s); else localStorage.setItem("favs", s); }catch(x){}
-}
-function share(e){
-  var link = SHARE_BASE+"?startapp="+encodeURIComponent(e.id);
-  var u = "https://t.me/share/url?url="+encodeURIComponent(link)+"&text="+encodeURIComponent(e.t);
-  if(tg && tg.openTelegramLink) tg.openTelegramLink(u); else window.open(u,"_blank","noopener");
-}
-function resetAll(){
-  state = {sport:"Все", region:"Все", price:"Все", q:"", day:"", fav:false};
-  $("q").value = ""; $("bFav").setAttribute("aria-pressed","false");
-  document.querySelectorAll(".filters .chip").forEach(function(x){
-    x.setAttribute("aria-pressed", String(x.textContent==="Все"));
+var TABS=[{k:"feed",l:"Афиша",i:"feed"},{k:"fav",l:"Избранное",i:"heart"},{k:"go",l:"Я иду",i:"check"},{k:"create",l:"Создать",i:"plus"}];
+function renderTabs(){
+  var box=$("tabs"); box.textContent="";
+  TABS.forEach(function(t){
+    var b=el("button"); b.type="button";
+    b.innerHTML=IC[t.i]; b.appendChild(el("span","",t.l));
+    var n = t.k==="fav"||t.k==="go" ? EVENTS.filter(function(e){return store[t.k][e.id] && e.date>=iso(today())}).length : 0;
+    if(n){ b.appendChild(el("i","",String(n))) }
+    if(state.tab===t.k) b.setAttribute("aria-current","page");
+    b.addEventListener("click", function(){ state.tab=t.k; renderTabs(); render(); window.scrollTo(0,0) });
+    box.appendChild(b);
   });
-  renderCal(); render();
-}
-function renderCal(){
-  var cal = $("cal"); cal.textContent = "";
-  var has = {}, months = [], t0 = today();
-  EVENTS.forEach(function(e){ if(e.d>=t0) has[e.d] = 1; });
-  Object.keys(has).sort().forEach(function(d){ var k = d.slice(0,7); if(months.indexOf(k)<0) months.push(k); });
-  months.forEach(function(k){
-    var y = +k.slice(0,4), m = +k.slice(5), box = el("div","month");
-    var mn = MG[m-1]; box.appendChild(el("h4","",mn.charAt(0).toUpperCase()+mn.slice(1)+" "+y));
-    var g = el("div","grid"), first = (new Date(Date.UTC(y,m-1,1)).getUTCDay()+6)%7, n = new Date(Date.UTC(y,m,0)).getUTCDate();
-    for(var i=0;i<first;i++) g.appendChild(el("span"));
-    for(var d=1; d<=n; d++){
-      (function(day){
-        var key = k+"-"+(day<10?"0":"")+day, b = el("button","",String(day));
-        b.type = "button"; b.disabled = !has[key];
-        b.setAttribute("aria-pressed", String(state.day===key));
-        b.onclick = function(){ state.day = state.day===key ? "" : key; renderCal(); render(); };
-        g.appendChild(b);
-      })(d);
-    }
-    box.appendChild(g); cal.appendChild(box);
-  });
-}
-function render(){
-  var list = $("list"); list.textContent = "";
-  var t0 = today(), q = state.q.toLowerCase();
-  var items = EVENTS.filter(function(e){
-    return e.d>=t0 &&
-      (state.sport==="Все"||e.s===state.sport) && (state.region==="Все"||e.r===state.region) &&
-      (state.price==="Все" || (state.price==="Бесплатно")===isFree(e)) &&
-      (!state.day||e.d===state.day) && (!state.fav||FAVS.indexOf(e.id)>=0) &&
-      (!q || [e.t,e.c,e.p,e.o,e.s].join(" ").toLowerCase().indexOf(q)>=0);
-  }).sort(function(a,b){return a.d<b.d?-1:(a.d>b.d?1:0)});
-  $("count").textContent = items.length ? "Найдено: "+items.length : "";
-  if(!items.length){
-    var em = el("div","empty","Под такие условия ничего не нашлось. Сбросьте фильтры, чтобы увидеть все предстоящие события.");
-    var rb0 = el("button","chip","Сбросить фильтры"); rb0.type = "button"; rb0.onclick = resetAll;
-    em.appendChild(document.createElement("br")); em.appendChild(rb0); list.appendChild(em);
-    return;
-  }
-  items.forEach(function(e){
-    var card = el("article","card"); card.id = "e-"+e.id;
-    var poster = el("div","poster"), url = safeUrl(e.img);
-    if(url){ var im = document.createElement("img"); im.src = url; im.alt = ""; im.loading = "lazy"; poster.appendChild(im); }
-    else { var cp = el("div","cp"); cp.appendChild(el("b","",String(+e.d.slice(8)))); poster.appendChild(cp); }
-    poster.appendChild(el("span","badge",label(e.d)));
-    var hb = el("button","heart", FAVS.indexOf(e.id)>=0 ? "♥" : "♡");
-    hb.type = "button"; hb.setAttribute("aria-label","В избранное");
-    hb.onclick = function(){
-      var i = FAVS.indexOf(e.id);
-      if(i<0) FAVS.push(e.id); else FAVS.splice(i,1);
-      saveFavs(); hb.textContent = i<0 ? "♥" : "♡"; if(state.fav) render();
-    };
-    poster.appendChild(hb);
-    var body = el("div","cbody");
-    body.appendChild(el("h3","",e.t));
-    body.appendChild(el("p","meta",[e.c,e.p].filter(Boolean).join(", ")));
-    var tags = el("div","tags");
-    tags.appendChild(el("span","tag", e.price || "Бесплатно"));
-    if(e.s) tags.appendChild(el("span","tag",e.s));
-    if(e.r) tags.appendChild(el("span","tag r",e.r));
-    if(e.o) tags.appendChild(el("span","tag",e.o));
-    body.appendChild(tags);
-    var acts = el("div","acts"), host = el("div","panel");
-    var link = safeUrl(e.l);
-    if(link){ var a = el("button","chip","Подробнее"); a.type = "button"; a.onclick = function(){ openExternal(link); }; acts.appendChild(a); }
-    if(e.id && API.indexOf("https://")===0){
-      var rb = el("button","chip","Заявки и участники"); rb.type = "button";
-      rb.onclick = function(){ togglePanel(e, host); }; acts.appendChild(rb);
-    }
-    if(SHARE_BASE.indexOf("SHORTNAME")<0){ var sb = el("button","chip","Поделиться"); sb.type = "button"; sb.onclick = function(){ share(e); }; acts.appendChild(sb); }
-    body.appendChild(acts); body.appendChild(host);
-    card.appendChild(poster); card.appendChild(body); list.appendChild(card);
-  });
+  var showF = state.tab!=="create";
+  $("fDate").hidden=!showF; $("fSport").hidden=!showF;
 }
 
-fetch("events.json", {cache:"no-store"})
-  .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
-  .then(function(data){
-    EVENTS = data;
-    mkChips($("fSport"), "sport", uniq("s"));
-    mkChips($("fRegion"), "region", uniq("r"));
-    mkChips($("fPrice"), "price", ["Все","Бесплатно","Платно"]);
-    $("q").addEventListener("input", function(){ state.q = this.value; render(); });
-    $("bFav").onclick = function(){
-      state.fav = !state.fav; this.setAttribute("aria-pressed", String(state.fav)); render();
-    };
-    renderCal();
-    loadFavs(function(){
-      render();
-      var sp = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
-      var t = sp && document.getElementById("e-"+sp);
-      if(t) t.scrollIntoView();
-    });
-  })
-  .catch(function(){
-    $("list").textContent = "";
-    $("list").appendChild(el("p","empty","Не удалось загрузить события. Проверьте интернет и откройте календарь ещё раз."));
+// ===== Карточка =====
+function card(e){
+  var c=el("article","card"); c.tabIndex=0; c.setAttribute("role","button"); c.setAttribute("aria-label",e.title);
+  var p=el("div","poster"); p.appendChild(poster(e));
+  var d=pd(e.date), db=el("div","date"); db.appendChild(el("b","",String(d.getDate()))); db.appendChild(el("span","",MON_S[d.getMonth()]));
+  p.appendChild(db); p.appendChild(el("span","sport",e.sport));
+  var b=el("div","cbody");
+  b.appendChild(el("h3","",e.title));
+  b.appendChild(el("p","meta",[e.time,e.city,e.place].filter(Boolean).join(" · ")));
+  b.appendChild(el("p","meta",e.org));
+  var a=el("div","acts");
+  var go=el("button","ib go"+(store.go[e.id]?" on":"")); go.type="button";
+  go.innerHTML=IC.check; go.appendChild(document.createTextNode(store.go[e.id]?"Иду":"Я иду"));
+  go.addEventListener("click", function(ev){ ev.stopPropagation(); toggle("go",e) });
+  var fv=el("button","ib fav"+(store.fav[e.id]?" on":"")); fv.type="button"; fv.innerHTML=IC.heart;
+  fv.setAttribute("aria-label", store.fav[e.id]?"Убрать из избранного":"В избранное"); fv.setAttribute("aria-pressed",String(!!store.fav[e.id]));
+  fv.addEventListener("click", function(ev){ ev.stopPropagation(); toggle("fav",e) });
+  a.appendChild(go); a.appendChild(fv);
+  b.appendChild(a);
+  c.appendChild(p); c.appendChild(b);
+  c.addEventListener("click", function(){ openSheet(e) });
+  c.addEventListener("keydown", function(ev){ if(ev.key==="Enter"||ev.key===" "){ ev.preventDefault(); openSheet(e) } });
+  return c;
+}
+
+// ===== Списки =====
+function render(){
+  var v=$("view"); v.textContent="";
+  if(state.tab==="create") return renderCreate(v);
+  var t=iso(today()), rg=range(state.when), from=iso(rg[0]), to=rg[1]?iso(rg[1]):"9999";
+  var items=EVENTS.filter(function(e){
+    if(e.date<t) return false;
+    if(state.tab==="fav" && !store.fav[e.id]) return false;
+    if(state.tab==="go" && !store.go[e.id]) return false;
+    return e.date>=from && e.date<=to && (state.sport==="Все"||e.sport===state.sport);
+  }).sort(function(a,b){ return (a.date+a.time)<(b.date+b.time)?-1:1 });
+  if(usingSample && state.tab==="feed") v.appendChild(el("p","note","Показаны примеры событий. В боте старты берутся из events.json."));
+  if(!items.length){
+    var em=el("div","empty");
+    var msg = state.tab==="fav"?["В избранном пусто","Нажмите на сердечко у старта, чтобы сохранить его здесь."]:
+              state.tab==="go"?["Вы пока никуда не идёте","Отметьте «Я иду» на старте, и он появится в этом списке."]:
+              ["На эти даты стартов нет","Выберите другой период или вид спорта."];
+    em.appendChild(el("b","",msg[0])); em.appendChild(document.createTextNode(msg[1]));
+    v.appendChild(em); return;
+  }
+  v.appendChild(el("p","count","Стартов: "+items.length));
+  var list=el("div","list"), cur="";
+  items.forEach(function(e){
+    if(e.date!==cur){ cur=e.date; list.appendChild(el("div","day",dayLabel(e))) }
+    list.appendChild(card(e));
   });
+  v.appendChild(list);
+}
+
+// ===== Детали =====
+function gcalUrl(e){
+  var d=e.date.replace(/-/g,""), q;
+  if(e.time){
+    var hm=e.time.split(":"), s=d+"T"+hm[0].padStart(2,"0")+hm[1]+"00";
+    var endH=String(Math.min(23,+hm[0]+3)).padStart(2,"0");
+    q=s+"/"+d+"T"+endH+hm[1]+"00";
+  } else {
+    q=d+"/"+iso(addD(pd(e.date),1)).replace(/-/g,"");
+  }
+  return "https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent(e.title)+"&dates="+q+"&ctz=Europe/Chisinau&location="+encodeURIComponent([e.place,e.city].filter(Boolean).join(", "))+"&details="+encodeURIComponent((e.desc?e.desc+"\n\n":"")+"Календарь стартов: "+BOT_URL);
+}
+function share(e){
+  var text=e.title+" — "+dayLabel(e)+(e.time?", "+e.time:"")+", "+e.city;
+  if(inTg){ openLink("https://t.me/share/url?url="+encodeURIComponent(BOT_URL)+"&text="+encodeURIComponent(text)); return }
+  var full=text+"\n"+BOT_URL;
+  if(navigator.clipboard){ navigator.clipboard.writeText(full).then(function(){ toast("Текст скопирован") }, function(){ toast(full) }) } else toast(full);
+}
+function closeSheet(){ $("sheet").hidden=true; $("sheet").textContent=""; if(inTg) try{ tg.BackButton.hide() }catch(e){} }
+function openSheet(e){
+  var sh=$("sheet"); sh.textContent=""; sh.hidden=false;
+  var bg=el("div","sheet-bg"); bg.addEventListener("click", function(ev){ if(ev.target===bg) closeSheet() });
+  var s=el("div","sheet"); s.setAttribute("role","dialog"); s.setAttribute("aria-modal","true"); s.setAttribute("aria-label",e.title);
+  var p=el("div","poster"); p.appendChild(poster(e)); p.appendChild(el("span","sport",e.sport));
+  p.lastChild.style.right="auto"; p.lastChild.style.left="12px";
+  var x=el("button","close"); x.type="button"; x.innerHTML=IC.x; x.setAttribute("aria-label","Закрыть"); x.addEventListener("click",closeSheet); p.appendChild(x);
+  var inn=el("div","in");
+  inn.appendChild(el("h2","",e.title));
+  var dl=el("dl","facts");
+  [["Когда",dayLabel(e)+(e.time?", "+e.time:"")],["Где",[e.city,e.place].filter(Boolean).join(", ")],["Регион",e.region],["Организатор",e.org]].forEach(function(r){
+    if(!r[1]) return; dl.appendChild(el("dt","",r[0])); dl.appendChild(el("dd","",r[1]));
+  });
+  inn.appendChild(dl);
+  if(e.desc) inn.appendChild(el("p","desc",e.desc));
+  var bt=el("div","btns");
+  var reg=el(e.reg?"a":"span","btn main",e.reg?"Зарегистрироваться":"Регистрация пока не открыта");
+  if(e.reg){ reg.href=e.reg; reg.target="_blank"; reg.rel="noopener"; reg.addEventListener("click",function(ev){ if(inTg){ ev.preventDefault(); openLink(e.reg) } }) } else reg.setAttribute("aria-disabled","true");
+  bt.appendChild(reg);
+  var go=el("button","btn"+(store.go[e.id]?" on":"")); go.type="button"; go.innerHTML=IC.check; go.appendChild(document.createTextNode(store.go[e.id]?"Иду":"Я иду"));
+  go.addEventListener("click",function(){ toggle("go",e) });
+  var fv=el("button","btn"); fv.type="button"; fv.innerHTML=IC.heart; fv.appendChild(document.createTextNode(store.fav[e.id]?"В избранном":"В избранное"));
+  if(store.fav[e.id]) fv.querySelector("svg").setAttribute("fill","currentColor");
+  fv.addEventListener("click",function(){ toggle("fav",e) });
+  var cal=el("a","btn"); cal.href=gcalUrl(e); cal.target="_blank"; cal.rel="noopener"; cal.innerHTML=IC.cal; cal.appendChild(document.createTextNode("Напомнить"));
+  cal.title="Добавить в Google Календарь";
+  cal.addEventListener("click",function(ev){ if(inTg){ ev.preventDefault(); openLink(cal.href) } });
+  var sh2=el("button","btn"); sh2.type="button"; sh2.innerHTML=IC.share; sh2.appendChild(document.createTextNode("Поделиться"));
+  sh2.addEventListener("click",function(){ share(e) });
+  [go,fv,cal,sh2].forEach(function(b){ bt.appendChild(b) });
+  inn.appendChild(bt);
+  s.appendChild(p); s.appendChild(inn); bg.appendChild(s); sh.appendChild(bg);
+  if(inTg) try{ tg.BackButton.show() }catch(err){}
+  x.focus();
+}
+document.addEventListener("keydown", function(ev){ if(ev.key==="Escape" && !$("sheet").hidden) closeSheet() });
+
+// ===== Создать старт =====
+function renderCreate(v){
+  var i=el("div","intro"); i.appendChild(el("b","","Добавить старт в календарь"));
+  i.appendChild(document.createTextNode("Заполните форму. Заявку проверит администратор, после одобрения старт появится в афише."));
+  v.appendChild(i);
+  var f=el("form","create"); f.id="createForm";
+  var tomorrow=iso(addD(today(),1));
+  f.innerHTML=
+    '<label>Название<input id="cTitle" required placeholder="Например: Кубок клуба. Спринт"></label>'+
+    '<div class="two"><label>Дата<input id="cDate" type="date" required min="'+iso(today())+'" value="'+tomorrow+'"></label>'+
+    '<label>Время старта<input id="cTime" type="time" value="10:00"></label></div>'+
+    '<div class="two"><label>Вид спорта<select id="cSport"><option>Ориентирование</option><option>Бег</option><option>Велоспорт</option><option>Другое</option></select></label>'+
+    '<label>Регион<select id="cRegion"><option>Молдова</option><option>ПМР</option></select></label></div>'+
+    '<div class="two"><label>Город<input id="cCity" required placeholder="Тирасполь"></label>'+
+    '<label>Место<input id="cPlace" placeholder="Лесопарк"></label></div>'+
+    '<label>Организатор<input id="cOrg" required placeholder="Клуб или федерация"></label>'+
+    '<label>Ссылка на регистрацию (если есть)<input id="cReg" type="url" placeholder="https://"></label>'+
+    '<label>Описание<textarea id="cDesc" rows="3" placeholder="Дистанции, группы, масштаб карты"></textarea></label>'+
+    '<button class="btn main" type="submit">Отправить на проверку</button>';
+  f.addEventListener("submit", function(ev){
+    ev.preventDefault();
+    var g=function(id){ return $(id).value.trim() };
+    var data={date:g("cDate"),time:g("cTime"),title:g("cTitle"),sport:g("cSport"),region:g("cRegion"),city:g("cCity"),place:g("cPlace"),org:g("cOrg"),reg:g("cReg"),desc:g("cDesc")};
+    if(inTg && tg.initDataUnsafe && tg.initDataUnsafe.user){ var u=tg.initDataUnsafe.user; data.tg_user_id=u.id; data.tg_username=u.username||""; data.tg_name=[u.first_name,u.last_name].filter(Boolean).join(" ") }
+    if(CREATE_ENDPOINT){
+      fetch(CREATE_ENDPOINT,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},body:JSON.stringify({action:"create_event",event:data})})
+        .then(function(){ toast("Заявка отправлена на проверку"); f.reset() })
+        .catch(function(){ toast("Не удалось отправить. Проверьте интернет и попробуйте ещё раз") });
+    } else {
+      toast("Демо: заявка не отправлена, адрес приёма ещё не подключён");
+    }
+  });
+  v.appendChild(f);
+}
+
+// ===== Старт =====
+function boot(list){
+  EVENTS=list.map(norm).filter(function(e){ return /^\d{4}-\d{2}-\d{2}$/.test(e.date) });
+  buildFilters(); renderTabs(); render();
+}
+if(inTg){
+  try{ tg.ready(); tg.expand(); document.documentElement.setAttribute("data-theme", tg.colorScheme==="dark"?"dark":"light");
+    tg.onEvent("themeChanged",function(){ document.documentElement.setAttribute("data-theme", tg.colorScheme==="dark"?"dark":"light") });
+    tg.BackButton.onClick(closeSheet);
+  }catch(e){}
+}
+loadStore(function(){ renderTabs(); render() });
+fetch(EVENTS_URL,{cache:"no-store"}).then(function(r){ if(!r.ok) throw 0; return r.json() })
+  .then(function(j){ boot(Array.isArray(j)?j:(j.events||[])) })
+  .catch(function(){ usingSample=true; boot(SAMPLE) });
 </script>
+
 </body>
 </html>
