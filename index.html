@@ -40,6 +40,20 @@ h1 small{display:block;font:500 12px/1.3 var(--body);color:var(--muted);letter-s
 .chip.s{font-size:13px;padding:5px 12px;background:transparent;border-color:var(--line)}
 .chip.s[aria-pressed="true"]{background:var(--forest);border-color:var(--forest);color:var(--on-accent)}
 
+.qbox input{width:100%;font:400 15px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:9px 12px}
+.sep{flex:none;width:1px;background:var(--line);margin:4px 2px}
+.price{font:600 13px var(--body);color:var(--forest)}
+.reg{display:grid;gap:10px;border-top:1px solid var(--line);padding-top:14px}
+.reg h3{font:600 16px var(--body);margin:0}
+.reg label{display:grid;gap:4px;font-size:13px;color:var(--muted)}
+.reg .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.reg input:not([type=checkbox]),.reg select{font:400 15px var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-width:0}
+.reg label.cons{display:flex;gap:8px;align-items:flex-start;color:var(--ink)}
+.reg .st{font-size:14px;color:var(--muted);margin:0;min-height:1em}
+.people{display:grid;gap:6px;font-size:14px}
+.people .p{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);border-radius:10px}
+.people .p span{min-width:0}
+.people .p button{flex:none;border:1px solid var(--line);background:transparent;border-radius:999px;padding:4px 10px;font-size:13px;cursor:pointer}
 .note{font-size:13px;color:var(--muted);margin:4px 0 10px}
 .count{font-size:13px;color:var(--muted);margin:6px 0 10px;font-variant-numeric:tabular-nums}
 .day{font:600 12px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:18px 2px 8px}
@@ -107,6 +121,7 @@ form.create input,form.create select,form.create textarea{font:400 15px var(--bo
       <h1 id="ttl">Календарь стартов<small>Молдова и Приднестровье</small></h1>
       <svg class="mark" viewBox="0 0 34 34" aria-hidden="true"><path d="M3 3h28v28z" fill="var(--flag)"/><path d="M3 3h28L3 31z" fill="#fff"/><rect x="3" y="3" width="28" height="28" fill="none" stroke="var(--ink)" stroke-width="1.5"/></svg>
     </div>
+    <div class="qbox" id="qbox"><input id="q" type="search" placeholder="Поиск: название, город, клуб" aria-label="Поиск"></div>
     <div class="row" id="fDate" role="group" aria-label="Когда"></div>
     <div class="row" id="fSport" role="group" aria-label="Вид спорта"></div>
   </header>
@@ -120,8 +135,12 @@ form.create input,form.create select,form.create textarea{font:400 15px var(--bo
 <script>
 // ===== Настройки =====
 var EVENTS_URL = "events.json";      // файл с событиями рядом со страницей (GitHub Pages)
-var CREATE_ENDPOINT = "";            // URL веб-приложения Apps Script для заявок на новые старты (пусто = демо)
+var API = "https://script.google.com/macros/s/AKfycbwcy9tTwYA17EBHmlCLAL4D-ygbJfGxjDUm85DOp5qOhsJDIvwMuevGfhTdsh8Va-J2/exec"; // Apps Script: регистрация
+var CREATE_ENDPOINT = "";            // URL Apps Script для заявок на новые старты (пусто = демо)
 var BOT_URL = "https://t.me/orient_calendarbot";
+var SHARE_BASE = "https://t.me/orient_calendarbot/orient_calendar_md"; // прямая ссылка на мини-приложение
+var GROUPS = [];
+["М","Ж"].forEach(function(s){[10,12,14,16,18,21,35,40,45,50,55,60,65].forEach(function(a){GROUPS.push(s+a)})});
 
 // Примеры на случай, если events.json не загрузился
 var SAMPLE = [
@@ -140,22 +159,31 @@ var SAMPLE = [
 var tg = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData !== undefined ? window.Telegram.WebApp : null;
 var inTg = !!(tg && tg.platform && tg.platform !== "unknown");
 var EVENTS = [], usingSample = false;
-var state = {tab:"feed", when:"all", sport:"Все"};
+var state = {tab:"feed", when:"all", sport:"Все", region:"Все", price:"Все", q:""};
 var store = {fav:{}, go:{}};
 var $ = function(id){return document.getElementById(id)};
 var MON = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
 var MON_S = ["янв","фев","мар","апр","мая","июн","июл","авг","сен","окт","ноя","дек"];
 
 // ===== Хранилище: Telegram CloudStorage (синхронно между устройствами) + localStorage =====
+function cloud(){ try{ return inTg && tg.CloudStorage && tg.isVersionAtLeast("6.9") }catch(e){ return false } }
 function saveStore(){
   var s = JSON.stringify(store);
   try{ localStorage.setItem("oc_store", s) }catch(e){}
-  if(inTg && tg.CloudStorage){ try{ tg.CloudStorage.setItem("oc_store", s) }catch(e){} }
+  if(cloud()){ try{ tg.CloudStorage.setItem("oc_store", s) }catch(e){} }
+}
+function mergeOldFavs(v){ // избранное из прошлой версии (ключ "favs", массив id)
+  try{ (JSON.parse(v||"[]")||[]).forEach(function(id){ store.fav[id]=1 }) }catch(e){}
 }
 function loadStore(done){
-  try{ var s = localStorage.getItem("oc_store"); if(s) store = JSON.parse(s) }catch(e){}
-  if(inTg && tg.CloudStorage){
-    try{ tg.CloudStorage.getItem("oc_store", function(err, v){ if(!err && v){ try{ store = JSON.parse(v); done() }catch(e){} } }) }catch(e){}
+  try{ var s = localStorage.getItem("oc_store"); if(s) store = JSON.parse(s); else mergeOldFavs(localStorage.getItem("favs")) }catch(e){}
+  if(cloud()){
+    try{ tg.CloudStorage.getItems(["oc_store","favs"], function(err, v){
+      if(err || !v) return;
+      if(v.oc_store){ try{ store = JSON.parse(v.oc_store) }catch(e){} }
+      else if(v.favs){ mergeOldFavs(v.favs); saveStore() }
+      done();
+    }) }catch(e){}
   }
 }
 
@@ -164,7 +192,8 @@ function norm(e, i){
   var o = {
     date: e.date||e.d, end: e.end||"", time: e.time||"", title: e.title||e.t||"Без названия",
     sport: e.sport||e.s||"Другое", region: e.region||e.r||"", city: e.city||e.c||"", place: e.place||e.p||"",
-    org: e.org||e.o||"", img: e.img||e.poster||"", reg: e.reg||e.url||"", desc: e.desc||""
+    org: e.org||e.o||"", img: safeUrl(e.img||e.poster), reg: safeUrl(e.reg), link: safeUrl(e.l||e.link||e.url),
+    price: e.price||"", desc: e.desc||""
   };
   o.id = e.id || (o.date+"-"+o.title).replace(/\s+/g,"-").toLowerCase();
   return o;
@@ -240,6 +269,12 @@ var IC = {
 };
 
 // ===== Утилиты =====
+function safeUrl(u){ return /^https?:\/\//i.test(u||"") ? u : "" }
+function isFree(e){ return !e.price || /^бесплатно/i.test(e.price) }
+function api(action, data){
+  var body = JSON.stringify(Object.assign({action:action, initData: inTg ? tg.initData : ""}, data||{}));
+  return fetch(API, {method:"POST", body:body}).then(function(r){ return r.json() });
+}
 function el(tag, cls, text){ var n=document.createElement(tag); if(cls) n.className=cls; if(text!==undefined) n.textContent=text; return n }
 function haptic(){ try{ inTg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred("light") }catch(e){} }
 var tt;
@@ -261,8 +296,8 @@ function toggle(kind, e){
 }
 
 // ===== Фильтры и вкладки =====
-function chips(box, items, key, cls){
-  box.textContent="";
+function chips(box, items, key, cls, keep){
+  if(!keep) box.textContent="";
   items.forEach(function(it){
     var b=el("button","chip"+(cls?" "+cls:""),it.l); b.type="button";
     b.setAttribute("aria-pressed", String(state[key]===it.k));
@@ -273,7 +308,12 @@ function chips(box, items, key, cls){
 function buildFilters(){
   chips($("fDate"), WHEN, "when");
   var sports=["Все"]; EVENTS.forEach(function(e){ if(sports.indexOf(e.sport)<0) sports.push(e.sport) });
-  chips($("fSport"), sports.map(function(s){return {k:s,l:s}}), "sport", "s");
+  chips($("fSport"), sports.map(function(s){return {k:s,l:s==="Все"?"Все виды":s}}), "sport", "s");
+  var regions=[{k:"Все",l:"Везде"}]; EVENTS.forEach(function(e){ if(e.region && !regions.some(function(r){return r.k===e.region})) regions.push({k:e.region,l:e.region}) });
+  $("fSport").appendChild(el("span","sep"));
+  chips($("fSport"), regions, "region", "s", true);
+  $("fSport").appendChild(el("span","sep"));
+  chips($("fSport"), [{k:"Все",l:"Любая цена"},{k:"Бесплатно",l:"Бесплатно"},{k:"Платно",l:"Платно"}], "price", "s", true);
 }
 var TABS=[{k:"feed",l:"Афиша",i:"feed"},{k:"fav",l:"Избранное",i:"heart"},{k:"go",l:"Я иду",i:"check"},{k:"create",l:"Создать",i:"plus"}];
 function renderTabs(){
@@ -288,7 +328,7 @@ function renderTabs(){
     box.appendChild(b);
   });
   var showF = state.tab!=="create";
-  $("fDate").hidden=!showF; $("fSport").hidden=!showF;
+  $("fDate").hidden=!showF; $("fSport").hidden=!showF; $("qbox").hidden=!showF;
 }
 
 // ===== Карточка =====
@@ -301,6 +341,7 @@ function card(e){
   b.appendChild(el("h3","",e.title));
   b.appendChild(el("p","meta",[e.time,e.city,e.place].filter(Boolean).join(" · ")));
   b.appendChild(el("p","meta",e.org));
+  if(e.price) b.appendChild(el("span","price",e.price));
   var a=el("div","acts");
   var go=el("button","ib go"+(store.go[e.id]?" on":"")); go.type="button";
   go.innerHTML=IC.check; go.appendChild(document.createTextNode(store.go[e.id]?"Иду":"Я иду"));
@@ -320,19 +361,22 @@ function card(e){
 function render(){
   var v=$("view"); v.textContent="";
   if(state.tab==="create") return renderCreate(v);
-  var t=iso(today()), rg=range(state.when), from=iso(rg[0]), to=rg[1]?iso(rg[1]):"9999";
+  var t=iso(today()), rg=range(state.when), from=iso(rg[0]), to=rg[1]?iso(rg[1]):"9999", q=state.q.toLowerCase();
   var items=EVENTS.filter(function(e){
     if(e.date<t) return false;
     if(state.tab==="fav" && !store.fav[e.id]) return false;
     if(state.tab==="go" && !store.go[e.id]) return false;
-    return e.date>=from && e.date<=to && (state.sport==="Все"||e.sport===state.sport);
+    return e.date>=from && e.date<=to && (state.sport==="Все"||e.sport===state.sport) &&
+      (state.region==="Все"||e.region===state.region) &&
+      (state.price==="Все"||(state.price==="Бесплатно")===isFree(e)) &&
+      (!q || [e.title,e.city,e.place,e.org,e.sport].join(" ").toLowerCase().indexOf(q)>=0);
   }).sort(function(a,b){ return (a.date+a.time)<(b.date+b.time)?-1:1 });
   if(usingSample && state.tab==="feed") v.appendChild(el("p","note","Показаны примеры событий. В боте старты берутся из events.json."));
   if(!items.length){
     var em=el("div","empty");
     var msg = state.tab==="fav"?["В избранном пусто","Нажмите на сердечко у старта, чтобы сохранить его здесь."]:
               state.tab==="go"?["Вы пока никуда не идёте","Отметьте «Я иду» на старте, и он появится в этом списке."]:
-              ["На эти даты стартов нет","Выберите другой период или вид спорта."];
+              ["Ничего не нашлось","Выберите другой период, вид спорта или измените поиск."];
     em.appendChild(el("b","",msg[0])); em.appendChild(document.createTextNode(msg[1]));
     v.appendChild(em); return;
   }
@@ -357,10 +401,52 @@ function gcalUrl(e){
   }
   return "https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent(e.title)+"&dates="+q+"&ctz=Europe/Chisinau&location="+encodeURIComponent([e.place,e.city].filter(Boolean).join(", "))+"&details="+encodeURIComponent((e.desc?e.desc+"\n\n":"")+"Календарь стартов: "+BOT_URL);
 }
+function regPanel(e){
+  var box=el("section","reg"); box.appendChild(el("h3","","Заявка на участие"));
+  var f=el("div"); f.style.display="grid"; f.style.gap="10px";
+  f.innerHTML='<label>Фамилия Имя<input id="rFio" autocomplete="name" placeholder="Иванов Иван"></label>'+
+    '<div class="two"><label>Год рождения<input id="rYear" type="number" inputmode="numeric" placeholder="1990"></label>'+
+    '<label>Группа<select id="rGroup">'+GROUPS.map(function(g){return "<option>"+g+"</option>"}).join("")+'</select></label></div>'+
+    '<label>Клуб<input id="rClub" placeholder="Если есть"></label>'+
+    '<label class="cons"><input id="rOk" type="checkbox"> Согласен(на) на обработку моих данных для участия в старте</label>';
+  var send=el("button","btn main","Отправить заявку"); send.type="button";
+  var st=el("p","st"); st.setAttribute("aria-live","polite");
+  var people=el("div","people");
+  function load(){
+    people.textContent="";
+    people.appendChild(el("p","st","Загружаем список участников…"));
+    api("list",{eventId:e.id}).then(function(r){
+      people.textContent="";
+      if(!r.ok){ people.appendChild(el("p","st",r.error||"Не удалось загрузить список.")); return }
+      people.appendChild(el("p","st","Заявлено: "+r.items.length));
+      r.items.forEach(function(x){
+        var row=el("div","p"); row.appendChild(el("span","",x.fio+", "+(x.club||"без клуба")+", "+x.group));
+        if(x.mine){ var c=el("button","","Отменить"); c.type="button"; c.onclick=function(){ c.disabled=true; api("cancel",{id:x.id}).then(load,load) }; row.appendChild(c) }
+        people.appendChild(row);
+      });
+    }).catch(function(){ people.textContent=""; people.appendChild(el("p","st","Не удалось загрузить список. Проверьте интернет.")) });
+  }
+  send.onclick=function(){
+    var fio=box.querySelector("#rFio"), ok=box.querySelector("#rOk");
+    if(!fio.value.trim()){ st.textContent="Укажите фамилию и имя."; fio.focus(); return }
+    if(!ok.checked){ st.textContent="Нужно согласие на обработку данных."; return }
+    send.disabled=true; st.textContent="Отправляем…";
+    api("register",{eventId:e.id,fio:fio.value.trim(),year:box.querySelector("#rYear").value,club:box.querySelector("#rClub").value.trim(),group:box.querySelector("#rGroup").value,consent:true})
+      .then(function(r){
+        send.disabled=false;
+        if(r.ok){ st.textContent="Заявка принята."; fio.value=""; haptic(); if(!store.go[e.id]){ store.go[e.id]=1; saveStore(); renderTabs(); render() } load() }
+        else st.textContent=r.error||"Сервер не принял заявку. Попробуйте ещё раз.";
+      }).catch(function(){ send.disabled=false; st.textContent="Нет связи с сервером. Проверьте интернет и отправьте ещё раз." });
+  };
+  box.appendChild(f); box.appendChild(send); box.appendChild(st); box.appendChild(people);
+  load();
+  return box;
+}
 function share(e){
   var text=e.title+" — "+dayLabel(e)+(e.time?", "+e.time:"")+", "+e.city;
-  if(inTg){ openLink("https://t.me/share/url?url="+encodeURIComponent(BOT_URL)+"&text="+encodeURIComponent(text)); return }
-  var full=text+"\n"+BOT_URL;
+  var link=SHARE_BASE+"?startapp="+encodeURIComponent(e.id);
+  if(inTg){ openLink("https://t.me/share/url?url="+encodeURIComponent(link)+"&text="+encodeURIComponent(text)); return }
+  var full=text+"\n"+link;
   if(navigator.clipboard){ navigator.clipboard.writeText(full).then(function(){ toast("Текст скопирован") }, function(){ toast(full) }) } else toast(full);
 }
 function closeSheet(){ $("sheet").hidden=true; $("sheet").textContent=""; if(inTg) try{ tg.BackButton.hide() }catch(e){} }
@@ -374,14 +460,20 @@ function openSheet(e){
   var inn=el("div","in");
   inn.appendChild(el("h2","",e.title));
   var dl=el("dl","facts");
-  [["Когда",dayLabel(e)+(e.time?", "+e.time:"")],["Где",[e.city,e.place].filter(Boolean).join(", ")],["Регион",e.region],["Организатор",e.org]].forEach(function(r){
+  [["Когда",dayLabel(e)+(e.time?", "+e.time:"")],["Где",[e.city,e.place].filter(Boolean).join(", ")],["Регион",e.region],["Организатор",e.org],["Взнос",e.price]].forEach(function(r){
     if(!r[1]) return; dl.appendChild(el("dt","",r[0])); dl.appendChild(el("dd","",r[1]));
   });
   inn.appendChild(dl);
   if(e.desc) inn.appendChild(el("p","desc",e.desc));
-  var bt=el("div","btns");
-  var reg=el(e.reg?"a":"span","btn main",e.reg?"Зарегистрироваться":"Регистрация пока не открыта");
-  if(e.reg){ reg.href=e.reg; reg.target="_blank"; reg.rel="noopener"; reg.addEventListener("click",function(ev){ if(inTg){ ev.preventDefault(); openLink(e.reg) } }) } else reg.setAttribute("aria-disabled","true");
+  var bt=el("div","btns"), regBox=null, reg;
+  if(e.reg){
+    reg=el("a","btn main","Зарегистрироваться"); reg.href=e.reg; reg.target="_blank"; reg.rel="noopener";
+    reg.addEventListener("click",function(ev){ if(inTg){ ev.preventDefault(); openLink(e.reg) } });
+  } else if(API){
+    regBox=regPanel(e);
+    reg=el("button","btn main","Заявки и участники"); reg.type="button";
+    reg.addEventListener("click",function(){ regBox.scrollIntoView({behavior:"smooth",block:"start"}); var f=regBox.querySelector("input"); if(f) f.focus({preventScroll:true}) });
+  } else { reg=el("span","btn main","Регистрация пока не открыта"); reg.setAttribute("aria-disabled","true") }
   bt.appendChild(reg);
   var go=el("button","btn"+(store.go[e.id]?" on":"")); go.type="button"; go.innerHTML=IC.check; go.appendChild(document.createTextNode(store.go[e.id]?"Иду":"Я иду"));
   go.addEventListener("click",function(){ toggle("go",e) });
@@ -394,7 +486,10 @@ function openSheet(e){
   var sh2=el("button","btn"); sh2.type="button"; sh2.innerHTML=IC.share; sh2.appendChild(document.createTextNode("Поделиться"));
   sh2.addEventListener("click",function(){ share(e) });
   [go,fv,cal,sh2].forEach(function(b){ bt.appendChild(b) });
+  if(e.link){ var more=el("a","btn","Подробнее о старте"); more.href=e.link; more.target="_blank"; more.rel="noopener"; more.style.gridColumn="1/-1";
+    more.addEventListener("click",function(ev){ if(inTg){ ev.preventDefault(); openLink(e.link) } }); bt.appendChild(more) }
   inn.appendChild(bt);
+  if(regBox) inn.appendChild(regBox);
   s.appendChild(p); s.appendChild(inn); bg.appendChild(s); sh.appendChild(bg);
   if(inTg) try{ tg.BackButton.show() }catch(err){}
   x.focus();
@@ -440,10 +535,17 @@ function renderCreate(v){
 function boot(list){
   EVENTS=list.map(norm).filter(function(e){ return /^\d{4}-\d{2}-\d{2}$/.test(e.date) });
   buildFilters(); renderTabs(); render();
+  var sp = inTg && tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+  if(sp){ var ev=EVENTS.filter(function(x){return x.id===sp})[0]; if(ev) openSheet(ev) }
 }
+$("q").addEventListener("input", function(){ state.q=this.value; render() });
 if(inTg){
-  try{ tg.ready(); tg.expand(); document.documentElement.setAttribute("data-theme", tg.colorScheme==="dark"?"dark":"light");
-    tg.onEvent("themeChanged",function(){ document.documentElement.setAttribute("data-theme", tg.colorScheme==="dark"?"dark":"light") });
+  var applyTheme=function(){
+    document.documentElement.setAttribute("data-theme", tg.colorScheme==="dark"?"dark":"light");
+    try{ var c=getComputedStyle(document.body).backgroundColor, m=c.match(/\d+/g);
+      if(m){ var hex="#"+m.slice(0,3).map(function(n){return (+n).toString(16).padStart(2,"0")}).join(""); tg.setHeaderColor(hex); tg.setBackgroundColor(hex) } }catch(e){}
+  };
+  try{ tg.ready(); tg.expand(); applyTheme(); tg.onEvent("themeChanged",applyTheme);
     tg.BackButton.onClick(closeSheet);
   }catch(e){}
 }
